@@ -1,29 +1,39 @@
-import { Injectable } from '@angular/core';
-import { HttpClient, HttpRequest, HttpEvent } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { TestBed } from '@angular/core/testing';
+import { HttpClientTestingModule, HttpTestingController } from '@angular/common/http/testing';
+import { FileUploadService } from './file-upload.service';
+import { environment } from '../../environments/environment';
 
-@Injectable({
-  providedIn: 'root'
-})
-export class FileUploadService {
-  private baseUrl = 'http://localhost:8080';
+describe('FileUploadService', () => {
+  let service: FileUploadService;
+  let httpMock: HttpTestingController;
 
-  constructor(private http: HttpClient) {}
-
-  upload(file: File): Observable<HttpEvent<any>> {
-    const formData: FormData = new FormData();
-
-    formData.append('file', file);
-
-    const req = new HttpRequest('POST', `${this.baseUrl}/upload`, formData, {
-      reportProgress: true,
-      responseType: 'json',
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      imports: [HttpClientTestingModule],
+      providers: [FileUploadService],
     });
+    service = TestBed.inject(FileUploadService);
+    httpMock = TestBed.inject(HttpTestingController);
+  });
 
-    return this.http.request(req);
-  }
+  afterEach(() => httpMock.verify());
 
-  getFiles(): Observable<any> {
-    return this.http.get(`${this.baseUrl}/files`);
-  }
-}
+  it('posts the image name and base64 payload to /analysis/image', () => {
+    service.upload('a.png', 'YWJj').subscribe();
+
+    const req = httpMock.expectOne(`${environment.apiBaseUrl}/analysis/image`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ imgName: 'a.png', imgBase64: 'YWJj' });
+    req.flush({});
+  });
+
+  it('requests the stored analysis by image name as a query param', () => {
+    service.getImageResult('a.png').subscribe();
+
+    const req = httpMock.expectOne(
+      (r) => r.url === `${environment.apiBaseUrl}/analysis/image` && r.params.get('name') === 'a.png'
+    );
+    expect(req.request.method).toBe('GET');
+    req.flush({ ImgName: 'a.png', ImgContent: 'hello' });
+  });
+});

@@ -1,31 +1,35 @@
 import { TestBed } from '@angular/core/testing';
+import { Component } from '@angular/core';
 import { AppComponent } from './app.component';
+
+@Component({ selector: 'app-image-upload', template: '', standalone: false })
+class ImageUploadStubComponent {}
 
 describe('AppComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      declarations: [
-        AppComponent
-      ],
+      declarations: [AppComponent, ImageUploadStubComponent],
     }).compileComponents();
   });
 
   it('should create the app', () => {
     const fixture = TestBed.createComponent(AppComponent);
-    const app = fixture.componentInstance;
-    expect(app).toBeTruthy();
+    expect(fixture.componentInstance).toBeTruthy();
   });
 
-  it(`should have as title 'angular-nando-demo-image-analysis'`, () => {
+  it('exposes the page title', () => {
     const fixture = TestBed.createComponent(AppComponent);
-    const app = fixture.componentInstance;
-    expect(app.title).toEqual('angular-nando-demo-image-analysis');
+    expect(fixture.componentInstance.title).toEqual(
+      'Analyze Image With Rekognition - Kafka - Mongo DB'
+    );
   });
 
-  it('should render title', () => {
+  it('renders the title inside the page', () => {
     const fixture = TestBed.createComponent(AppComponent);
     fixture.detectChanges();
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('.content span')?.textContent).toContain('angular-nando-demo-image-analysis app is running!');
+    expect(compiled.querySelector('h4')?.textContent).toContain(
+      'Analyze Image With Rekognition - Kafka - Mongo DB'
+    );
   });
 });
