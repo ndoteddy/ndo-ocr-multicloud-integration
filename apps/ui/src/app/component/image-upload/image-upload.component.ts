@@ -4,9 +4,10 @@ import { Observable } from 'rxjs';
 import { FileUploadService } from 'src/app/services/file-upload.service';
 
 @Component({
-  selector: 'app-image-upload',
-  templateUrl: './image-upload.component.html',
-  styleUrls: ['./image-upload.component.css']
+    selector: 'app-image-upload',
+    templateUrl: './image-upload.component.html',
+    styleUrls: ['./image-upload.component.css'],
+    standalone: false
 })
 export class ImageUploadComponent implements OnInit {
   selectedFiles?: FileList;
