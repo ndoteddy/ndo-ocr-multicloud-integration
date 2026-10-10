@@ -1,0 +1,16 @@
+{
+  "name": "ndo-ocr-multicloud-integration",
+  "version": "1.0.0",
+  "private": true,
+  "description": "OCR pipeline spanning Angular, Express, .NET, AWS Lambda, Kafka, and MongoDB Atlas.",
+  "workspaces": [
+    "apps/backend",
+    "apps/ui"
+  ],
+  "scripts": {
+    "test": "npm test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test:backend": "npm test --workspace=apps/backend",
+    "test:ui": "npm test --workspace=apps/ui"
+  }
+}

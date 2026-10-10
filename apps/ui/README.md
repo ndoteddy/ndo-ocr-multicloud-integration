@@ -1,31 +1,39 @@
-# AngularNandoDemoImageAnalysis
+# OCR UI
 
-This project was generated with [Angular CLI](https://github.com/angular/angular-cli) version 15.2.9.
+Angular app: pick an image, upload it, and poll for the OCR result. See
+[docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md) for how this fits into the
+rest of the pipeline.
 
-## Development server
+## Setup
 
-Run `ng serve` for a dev server. Navigate to `http://localhost:4200/`. The application will automatically reload if you change any of the source files.
+```bash
+npm install
+npm start   # ng serve, http://localhost:4200
+```
 
-## Code scaffolding
-
-Run `ng generate component component-name` to generate a new component. You can also use `ng generate directive|pipe|service|class|guard|interface|enum|module`.
+Edit `src/environments/environment.ts` for local `apiBaseUrl`/`apiKey`
+(must match the backend's `API_KEY`); `environment.prod.ts` is swapped in for
+production builds via `angular.json`'s `fileReplacements` — see the caveat
+on shipping a key in a browser bundle in
+[docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md#auth-model).
 
 ## Build
 
-Run `ng build` to build the project. The build artifacts will be stored in the `dist/` directory.
+```bash
+npm run build       # production build, output in dist/
+```
 
-## Running unit tests
+## Tests
 
-Run `ng test` to execute the unit tests via [Karma](https://karma-runner.github.io).
+```bash
+npm test                                           # interactive watch mode
+npx ng test --watch=false --browsers=ChromeHeadless # one-shot, e.g. for CI
+```
 
-## Running end-to-end tests
+If Chrome isn't installed, point `CHROME_BIN` at another Chromium-based
+browser (e.g. Edge) before running.
 
-Run `ng e2e` to execute the end-to-end tests via a platform of your choice. To use this command, you need to first add a package that implements end-to-end testing capabilities.
-
-## Further help
-
-To get more help on the Angular CLI use `ng help` or go check out the [Angular CLI Overview and Command Reference](https://angular.io/cli) page.
-
----Created with Passion by Hernando Ivan Teddy 
----You dont have to thanks me - just remember my name and share this article to other people 
----Sharing is caring
+---
+Created with Passion by Hernando Ivan Teddy
+You dont have to thanks me - just remember my name and share this article to other people
+Sharing is caring
