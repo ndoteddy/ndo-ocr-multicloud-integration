@@ -60,10 +60,10 @@
           "builder": "@angular-devkit/build-angular:dev-server",
           "configurations": {
             "production": {
-              "browserTarget": "angular-nando-demo-image-analysis:build:production"
+              "buildTarget": "angular-nando-demo-image-analysis:build:production"
             },
             "development": {
-              "browserTarget": "angular-nando-demo-image-analysis:build:development"
+              "buildTarget": "angular-nando-demo-image-analysis:build:development"
             }
           },
           "defaultConfiguration": "development"
@@ -71,7 +71,7 @@
         "extract-i18n": {
           "builder": "@angular-devkit/build-angular:extract-i18n",
           "options": {
-            "browserTarget": "angular-nando-demo-image-analysis:build"
+            "buildTarget": "angular-nando-demo-image-analysis:build"
           }
         },
         "test": {
