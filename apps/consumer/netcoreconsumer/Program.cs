@@ -1,115 +1,121 @@
-﻿using System;
-using Confluent.Kafka;
-using System.Threading;
-using Microsoft.Extensions.Configuration;
-using System.IO;
+using System;
 using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Text.Json;
-using System.Text;
-using System.Collections.Generic;
-using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using Confluent.Kafka;
+using Microsoft.Extensions.Configuration;
+using netcoreconsumer.Configuration;
+using netcoreconsumer.Models;
+using netcoreconsumer.Services;
 
 namespace netcoreconsumer
 {
-    class Program
+    public class Program
     {
-        static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
-
-          
-            var kafkaFilePath = AppDomain.CurrentDomain.BaseDirectory + @"getting-started.properties";
-            var configForKafka = new ConfigurationBuilder()
-                .AddIniFile(kafkaFilePath)
+            var configuration = new ConfigurationBuilder()
+                .SetBasePath(AppContext.BaseDirectory)
+                .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
+                .AddEnvironmentVariables()
                 .Build();
 
-            
-            var configInAppSetting = new ConfigurationBuilder();
-                configInAppSetting.SetBasePath(Directory.GetCurrentDirectory())
-             .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true).Build();
+            var options = LoadOptions(configuration);
 
-            configForKafka["group.id"] = "kafka-dotnet-getting-started";
-            configForKafka["auto.offset.reset"] = "earliest";
+            using var httpClient = new HttpClient();
+            var textExtractionClient = new RekognitionApiClient(httpClient, options.ApiGatewayUrl, options.ApiKey);
+            var imageResultRepository = new MongoImageResultRepository(options.MongoConnectionString, options.MongoDatabaseName, options.MongoCollectionName);
+            var imageProcessingService = new ImageProcessingService(textExtractionClient, imageResultRepository);
 
-            const string topic = "image_analysis_my";
+            var consumerConfig = new ConsumerConfig
+            {
+                BootstrapServers = options.KafkaBootstrapServers,
+                GroupId = options.KafkaGroupId,
+                AutoOffsetReset = AutoOffsetReset.Earliest,
+                SecurityProtocol = Enum.Parse<SecurityProtocol>(options.KafkaSecurityProtocol, ignoreCase: true),
+                SaslMechanism = Enum.Parse<SaslMechanism>(options.KafkaSaslMechanism, ignoreCase: true),
+                SaslUsername = options.KafkaSaslUsername,
+                SaslPassword = options.KafkaSaslPassword,
+            };
 
-            CancellationTokenSource cts = new CancellationTokenSource();
-            Console.CancelKeyPress += (_, e) => {
+            using var cts = new CancellationTokenSource();
+            Console.CancelKeyPress += (_, e) =>
+            {
                 e.Cancel = true; // prevent the process from terminating.
                 cts.Cancel();
             };
 
-            using (var consumer = new ConsumerBuilder<string, string>(
-                configForKafka.AsEnumerable()).Build())
-            {
-                consumer.Subscribe(topic);
-                try
-                {
-                    while (true)
-                    {
-                        var cr = consumer.Consume(cts.Token);
-                        Console.WriteLine($"Consumed event from topic {topic} with key {cr.Message.Key,-10} and value {cr.Message.Value}");
-                        var images = JsonSerializer.Deserialize<ImageBase64>(cr.Message.Value);
-                        GetTextFromImage(images);
- 
+            using var consumer = new ConsumerBuilder<string, string>(consumerConfig).Build();
+            consumer.Subscribe(options.KafkaTopic);
 
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    // Ctrl-C was pressed.
-                }
-                finally
-                {
-                    consumer.Close();
-                }
-            }
-        }
-   
-
-        static async void GetTextFromImage(ImageBase64 imageBase64)
-        { 
             try
             {
-                using var client = new HttpClient();
-                var json = JsonSerializer.Serialize(imageBase64);
-                HttpContent content = new StringContent(json, Encoding.UTF8, "application/json");
-                client.DefaultRequestHeaders.Add("x-api-key", "<<YOUROWNAPIKEY>>");
-                var response = await client.PostAsync("<<YOUROWNAPIGATEWAYURL>>", content);
-                if (response.IsSuccessStatusCode)
+                while (true)
                 {
-                    var result = await response.Content.ReadAsStringAsync();
-                    Console.WriteLine(result);
+                    var consumeResult = consumer.Consume(cts.Token);
+                    Console.WriteLine($"Consumed event from topic {options.KafkaTopic} with key {consumeResult.Message.Key,-10} and value {consumeResult.Message.Value}");
 
-                    //process data from aws rekognition
-                    var imageResponseFromAWS = JsonSerializer.Deserialize<ImageResponseFromAWS>(result);
-
-                    //get image result 
-
-                    var imgContent = string.Join(" ",imageResponseFromAWS.body.TextDetections.Select(x => x.DetectedText).ToArray());
-
-
-                    var imageResult = new ImageResult()
+                    var image = JsonSerializer.Deserialize<ImageBase64>(consumeResult.Message.Value);
+                    if (image is null)
                     {
-                        ImgName = imageBase64.imgName,
-                        ImgContent = imgContent
-                    };
+                        Console.WriteLine("Skipping message: could not deserialize payload.");
+                        continue;
+                    }
 
-
-                    //save to mongo db atlas
-                    ImageServices.SaveImageMetadata(imageResult);
-
+                    try
+                    {
+                        var result = await imageProcessingService.ProcessAsync(image, cts.Token).ConfigureAwait(false);
+                        Console.WriteLine(result is null
+                            ? $"Failed to process image '{image.imgName}': text extraction call did not succeed."
+                            : $"Saved analysis for '{result.ImgName}'.");
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        Console.WriteLine($"Error processing image '{image.imgName}': {ex}");
+                    }
                 }
-                else
-                {
-                    Console.WriteLine($"Failed with status code {response.StatusCode}");
-                }
-
             }
-            catch (Exception ex)
+            catch (OperationCanceledException)
             {
-                Console.WriteLine(ex.ToString());
+                // Ctrl-C was pressed.
             }
+            finally
+            {
+                consumer.Close();
+            }
+        }
+
+        private static ConsumerOptions LoadOptions(IConfiguration configuration)
+        {
+            return new ConsumerOptions
+            {
+                MongoConnectionString = RequireValue(configuration, "Mongo:ConnectionString"),
+                MongoDatabaseName = configuration["Mongo:DatabaseName"] ?? "dbnando_demo",
+                MongoCollectionName = configuration["Mongo:CollectionName"] ?? "image_analysis_with_rekognition",
+                ApiGatewayUrl = RequireValue(configuration, "ApiGateway:Url"),
+                ApiKey = RequireValue(configuration, "ApiGateway:ApiKey"),
+                KafkaBootstrapServers = RequireValue(configuration, "Kafka:BootstrapServers"),
+                KafkaSecurityProtocol = configuration["Kafka:SecurityProtocol"] ?? "SaslSsl",
+                KafkaSaslMechanism = configuration["Kafka:SaslMechanism"] ?? "Plain",
+                KafkaSaslUsername = RequireValue(configuration, "Kafka:SaslUsername"),
+                KafkaSaslPassword = RequireValue(configuration, "Kafka:SaslPassword"),
+                KafkaGroupId = configuration["Kafka:GroupId"] ?? "kafka-dotnet-getting-started",
+                KafkaTopic = configuration["Kafka:Topic"] ?? "image_analysis_my",
+            };
+        }
+
+        private static string RequireValue(IConfiguration configuration, string key)
+        {
+            var value = configuration[key];
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                var envVarHint = key.Replace(":", "__");
+                throw new InvalidOperationException(
+                    $"Missing required configuration value '{key}'. Set it via appsettings.json or the '{envVarHint}' environment variable.");
+            }
+
+            return value;
         }
     }
 }
